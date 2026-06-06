@@ -195,12 +195,12 @@ def get_recommendation(win_pct, draws):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
-
-
-@app.route('/future-cost')
-def future_cost():
     return render_template('future_cost.html')
+
+
+@app.route('/pokersense')
+def pokersense():
+    return render_template('index.html')
 
 
 @app.route('/calculate', methods=['POST'])
