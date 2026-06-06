@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokerSense — Texas Hold'em Odds</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<div class="app-wrap">
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="logo">♠ PokerSense</div>
+    <p class="tagline">Texas Hold'em Odds Calculator</p>
+  </header>
+
+  <!-- Mode Toggle -->
+  <div class="mode-toggle-wrap">
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btn-basic"    onclick="setMode('basic')">Basic</button>
+      <button class="mode-btn"        id="btn-advanced" onclick="setMode('advanced')">Advanced</button>
+    </div>
+  </div>
+
+  <!-- Felt table -->
+  <main class="felt-table">
+
+    <!-- Table top bar -->
+    <div class="table-topbar">
+      <button class="reset-btn" onclick="clearAll()">↺ Reset</button>
+    </div>
+
+    <!-- Hole Cards -->
+    <section class="card-section">
+      <h2 class="section-title">Your Hole Cards <span class="req">required</span></h2>
+      <div class="card-slots" id="hole-slots">
+        <div class="card-slot" data-group="hole" data-index="0" onclick="openPicker('hole',0)">
+          <span class="slot-label">Card 1</span>
+        </div>
+        <div class="card-slot" data-group="hole" data-index="1" onclick="openPicker('hole',1)">
+          <span class="slot-label">Card 2</span>
+        </div>
+      </div>
+      <div id="hole-assessment" class="hole-assessment hidden">
+        <span class="ha-name" id="ha-name"></span>
+        <span class="ha-advice" id="ha-advice"></span>
+      </div>
+    </section>
+
+    <!-- Community Cards -->
+    <section class="card-section">
+      <h2 class="section-title">Community Cards <span class="opt">optional</span></h2>
+      <div class="card-slots" id="community-slots">
+        <div class="card-slot" data-group="community" data-index="0" onclick="openPicker('community',0)">
+          <span class="slot-label">Flop 1</span>
+        </div>
+        <div class="card-slot" data-group="community" data-index="1" onclick="openPicker('community',1)">
+          <span class="slot-label">Flop 2</span>
+        </div>
+        <div class="card-slot" data-group="community" data-index="2" onclick="openPicker('community',2)">
+          <span class="slot-label">Flop 3</span>
+        </div>
+        <div class="card-slot" data-group="community" data-index="3" onclick="openPicker('community',3)">
+          <span class="slot-label">Turn</span>
+        </div>
+        <div class="card-slot" data-group="community" data-index="4" onclick="openPicker('community',4)">
+          <span class="slot-label">River</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Player Count -->
+    <section class="players-row">
+      <h2 class="section-title">Players at the Table</h2>
+      <div class="player-ctrl">
+        <button class="player-btn" id="btn-dec" onclick="adjustPlayers(-1)">−</button>
+        <span id="player-count" class="player-num">4</span>
+        <button class="player-btn" id="btn-inc" onclick="adjustPlayers(1)">+</button>
+      </div>
+      <span class="player-note">including you</span>
+    </section>
+
+    <!-- ── Advanced Panel ─────────────────────────────────────────────────── -->
+    <div id="advanced-panel" class="advanced-panel hidden">
+
+      <!-- Position -->
+      <section class="card-section">
+        <h2 class="section-title">Your Position <span class="opt">tap to select</span></h2>
+        <div class="pos-grid">
+          <button class="pos-btn" data-pos="Straddle" onclick="setPosition('Straddle')">Straddle</button>
+          <button class="pos-btn" data-pos="UTG"      onclick="setPosition('UTG')">UTG</button>
+          <button class="pos-btn" data-pos="MP"       onclick="setPosition('MP')">MP</button>
+          <button class="pos-btn" data-pos="CO"       onclick="setPosition('CO')">CO</button>
+          <button class="pos-btn" data-pos="BTN"      onclick="setPosition('BTN')">BTN</button>
+          <button class="pos-btn" data-pos="SB"       onclick="setPosition('SB')">SB</button>
+          <button class="pos-btn" data-pos="BB"       onclick="setPosition('BB')">BB</button>
+        </div>
+      </section>
+
+      <!-- Pot & Stack -->
+      <section class="card-section">
+        <h2 class="section-title">Bet Sizing <span class="opt">in big blinds</span></h2>
+        <div class="adv-fields">
+          <div class="adv-field">
+            <label class="adv-label">Pot Size</label>
+            <input class="adv-input" type="number" id="inp-pot"   placeholder="e.g. 8"   min="0" step="0.5" />
+          </div>
+          <div class="adv-field">
+            <label class="adv-label">Bet to Call</label>
+            <input class="adv-input" type="number" id="inp-bet"   placeholder="e.g. 4"   min="0" step="0.5" />
+          </div>
+          <div class="adv-field">
+            <label class="adv-label">Your Stack</label>
+            <input class="adv-input" type="number" id="inp-stack" placeholder="e.g. 100" min="0" step="1"   />
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /advanced-panel -->
+
+    <!-- Calculate -->
+    <button class="calc-btn" id="calc-btn" onclick="calculate()">Calculate Odds</button>
+
+    <!-- Error -->
+    <div id="error-box" class="error-box hidden"></div>
+
+    <!-- Results -->
+    <div id="results" class="results hidden">
+      <div class="results-label">Your Equity</div>
+
+      <div class="equity-rows">
+        <div class="equity-row">
+          <div class="eq-meta">
+            <span class="eq-name">Win</span>
+            <span class="eq-pct win-color" id="win-pct">--%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill win-fill" id="win-bar"></div></div>
+        </div>
+        <div class="equity-row">
+          <div class="eq-meta">
+            <span class="eq-name">Tie</span>
+            <span class="eq-pct tie-color" id="tie-pct">--%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill tie-fill" id="tie-bar"></div></div>
+        </div>
+        <div class="equity-row">
+          <div class="eq-meta">
+            <span class="eq-name">Loss</span>
+            <span class="eq-pct loss-color" id="loss-pct">--%</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill loss-fill" id="loss-bar"></div></div>
+        </div>
+      </div>
+
+      <div class="info-chips">
+        <div class="info-chip">
+          <span class="chip-label">Current Hand</span>
+          <span class="chip-value" id="hand-name">--</span>
+        </div>
+        <div class="info-chip">
+          <span class="chip-label">Draws</span>
+          <span class="chip-value" id="draws-text">None</span>
+        </div>
+      </div>
+
+      <div class="rec-box">
+        <span class="rec-icon">💡</span>
+        <span id="rec-text">--</span>
+      </div>
+
+      <!-- Advanced results — only shown in advanced mode -->
+      <div id="adv-results" class="adv-results hidden">
+        <div class="adv-results-divider">Advanced Analysis</div>
+
+        <!-- Pot odds / SPR chips -->
+        <div class="info-chips" id="adv-chips"></div>
+
+        <!-- Pot odds decision banner -->
+        <div id="pot-decision" class="pot-decision hidden"></div>
+
+        <!-- Position note -->
+        <div id="pos-note" class="pos-note hidden"></div>
+      </div>
+
+    </div><!-- /results -->
+
+  </main><!-- /felt-table -->
+
+</div><!-- /app-wrap -->
+
+
+<!-- ── Card Picker Modal ─────────────────────────────────────────────────── -->
+<div id="picker-overlay" class="picker-overlay hidden" onclick="closePicker()">
+  <div class="picker-modal" onclick="event.stopPropagation()">
+
+    <div class="picker-head">
+      <span id="picker-title">Select a Card</span>
+      <button class="close-btn" onclick="closePicker()">✕</button>
+    </div>
+
+    <div class="picker-grid" id="picker-grid"></div>
+
+    <div class="picker-foot">
+      <button class="clear-btn" onclick="clearSlot()">Clear Slot</button>
+    </div>
+
+  </div>
+</div>
+
+
+<script src="/static/script.js"></script>
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Future Cost Calculator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background-color: #0a0f1e;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: #f8fafc;
+      margin: 0;
+    }
+
+    /* Range slider */
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 9999px;
+      background: #1e293b;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #22c55e;
+      cursor: pointer;
+      box-shadow: 0 0 0 4px rgba(34,197,94,0.15);
+      transition: box-shadow 0.15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 0 7px rgba(34,197,94,0.2);
+    }
+
+    /* Number input */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+
+    /* Preset scroll row */
+    .preset-row {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .preset-row::-webkit-scrollbar { display: none; }
+
+    /* Smooth transitions */
+    .transition-all { transition: all 0.15s ease; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    {% raw %}
+
+    const PRESETS = [
+      { label: '☕ Coffee',   value: 6    },
+      { label: '🍽 Dinner',   value: 75   },
+      { label: '👟 Shoes',    value: 150  },
+      { label: '📱 iPhone',   value: 1200 },
+      { label: '🚗 Car pmt',  value: 700  },
+    ];
+
+    const RETURN_OPTS = [7, 8, 10, 12];
+
+    function fmt(n) {
+      if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(2) + 'M';
+      if (n >= 1_000)     return '$' + Math.round(n).toLocaleString('en-US');
+      return '$' + n.toFixed(2);
+    }
+
+    function fmtFull(n) {
+      return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function fv(pv, r, t) {
+      return pv * Math.pow(1 + r / 100, t);
+    }
+
+    /* ── Chart component ─────────────────────────────────────── */
+    function GrowthChart({ price, effectiveR, years }) {
+      const canvasRef = React.useRef(null);
+      const chartRef  = React.useRef(null);
+
+      React.useEffect(() => {
+        const labels = [], values = [];
+        for (let y = 0; y <= years; y++) {
+          labels.push(y);
+          values.push(parseFloat(fv(price, effectiveR, y).toFixed(2)));
+        }
+
+        const ctx = canvasRef.current.getContext('2d');
+
+        if (chartRef.current) {
+          chartRef.current.data.labels = labels;
+          chartRef.current.data.datasets[0].data = values;
+          chartRef.current.data.datasets[1].data = labels.map(() => price);
+          chartRef.current.update('none');
+          return;
+        }
+
+        chartRef.current = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Future Value',
+                data: values,
+                borderColor: '#22c55e',
+                borderWidth: 2.5,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: '#22c55e',
+                pointHoverBorderColor: '#0a0f1e',
+                pointHoverBorderWidth: 2,
+                tension: 0.35,
+                fill: true,
+                backgroundColor: (ctx) => {
+                  const g = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height);
+                  g.addColorStop(0, 'rgba(34,197,94,0.20)');
+                  g.addColorStop(1, 'rgba(34,197,94,0.01)');
+                  return g;
+                },
+                order: 1,
+              },
+              {
+                label: 'Cost basis',
+                data: labels.map(() => price),
+                borderColor: '#334155',
+                borderWidth: 1.5,
+                borderDash: [5, 4],
+                pointRadius: 0,
+                pointHoverRadius: 0,
+                fill: false,
+                order: 2,
+              }
+            ]
+          },
+          options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: '#1e293b',
+                borderColor: '#334155',
+                borderWidth: 1,
+                padding: 12,
+                titleColor: '#94a3b8',
+                titleFont: { size: 12, weight: '500' },
+                bodyColor: '#4ade80',
+                bodyFont: { weight: '700', size: 15 },
+                displayColors: false,
+                callbacks: {
+                  title: (items) => `Year ${items[0].label}`,
+                  label: (item) => item.datasetIndex === 0 ? fmtFull(item.raw) : null,
+                  afterLabel: (item) => {
+                    if (item.datasetIndex !== 0) return null;
+                    const gain = item.raw - price;
+                    return gain > 0 ? `+${fmtFull(gain)} gain` : null;
+                  },
+                }
+              }
+            },
+            scales: {
+              x: {
+                grid: { color: 'rgba(51,65,85,0.4)', drawBorder: false },
+                ticks: {
+                  color: '#475569',
+                  font: { size: 11 },
+                  maxTicksLimit: 8,
+                  callback: (v, i, ticks) => {
+                    if (i === 0 || i === ticks.length - 1 || v % Math.ceil(years / 5) === 0) return v;
+                    return null;
+                  }
+                },
+                border: { display: false },
+                title: { display: true, text: 'Years', color: '#334155', font: { size: 11 } },
+              },
+              y: {
+                min: 0,
+                grid: { color: 'rgba(51,65,85,0.4)', drawBorder: false },
+                border: { display: false },
+                ticks: {
+                  color: '#475569',
+                  font: { size: 11 },
+                  maxTicksLimit: 5,
+                  callback: (v) => {
+                    if (v >= 1_000_000) return '$' + (v / 1_000_000).toFixed(1) + 'M';
+                    if (v >= 1_000)     return '$' + (v / 1_000).toFixed(0) + 'k';
+                    return '$' + v;
+                  }
+                }
+              }
+            }
+          }
+        });
+
+        return () => {
+          if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+        };
+      }, [price, effectiveR, years]);
+
+      return <canvas ref={canvasRef} style={{ height: '240px' }} />;
+    }
+
+    /* ── Main App ────────────────────────────────────────────── */
+    function App() {
+      const [price, setPrice]         = React.useState(8);
+      const [years, setYears]         = React.useState(20);
+      const [returnPct, setReturnPct] = React.useState(10);
+      const [customR, setCustomR]     = React.useState('');
+      const [useCustom, setUseCustom] = React.useState(false);
+      const [activePreset, setActivePreset] = React.useState(null);
+
+      const effectiveR  = useCustom ? (parseFloat(customR) || 0) : returnPct;
+      const futureValue = fv(price, effectiveR, years);
+      const gain        = futureValue - price;
+      const multiplier  = price > 0 ? (futureValue / price).toFixed(1) : '—';
+
+      function handlePreset(p) {
+        setPrice(p.value);
+        setActivePreset(p.label);
+      }
+      function handlePriceChange(val) {
+        const n = parseFloat(val) || 0;
+        setPrice(n);
+        setActivePreset(null);
+      }
+      function handleReturnPill(r) {
+        setReturnPct(r);
+        setUseCustom(false);
+        setCustomR('');
+      }
+      function handleCustomFocus() {
+        setUseCustom(true);
+      }
+      function handleCustomChange(val) {
+        setCustomR(val);
+        setUseCustom(true);
+      }
+
+      /* Inline styles for things Tailwind CDN can't do dynamically */
+      const sliderBackground = `linear-gradient(to right, #22c55e ${(years - 1) / 49 * 100}%, #1e293b ${(years - 1) / 49 * 100}%)`;
+
+      return (
+        <div style={{ minHeight: '100vh', padding: '40px 16px 60px' }}>
+          <div style={{ maxWidth: '600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+            {/* ── Header ── */}
+            <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)',
+                borderRadius: '999px', padding: '4px 14px', marginBottom: '14px',
+                color: '#4ade80', fontSize: '11px', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase'
+              }}>
+                S&amp;P 500 · Compound Growth
+              </div>
+              <h1 style={{ margin: '0 0 8px', fontSize: 'clamp(28px, 7vw, 40px)', fontWeight: '900', lineHeight: 1.1, color: '#fff' }}>
+                Future Cost Calculator
+              </h1>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
+                See what a purchase could be worth if you invested it instead.
+              </p>
+            </div>
+
+            {/* ── Presets ── */}
+            <div className="preset-row">
+              {PRESETS.map(p => {
+                const active = activePreset === p.label;
+                return (
+                  <button
+                    key={p.label}
+                    onClick={() => handlePreset(p)}
+                    style={{
+                      flexShrink: 0,
+                      padding: '9px 16px',
+                      borderRadius: '12px',
+                      border: `1px solid ${active ? '#22c55e' : '#1e293b'}`,
+                      background: active ? 'rgba(34,197,94,0.1)' : '#111827',
+                      color: active ? '#4ade80' : '#64748b',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      transition: 'all 0.15s',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {p.label}
+                    <span style={{ marginLeft: '5px', color: active ? '#22c55e' : '#94a3b8', fontWeight: '700' }}>
+                      ${p.value.toLocaleString()}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Inputs card ── */}
+            <div style={{ background: '#111827', border: '1px solid #1e293b', borderRadius: '20px', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+
+              {/* Price */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  Price today
+                </label>
+                <div style={{
+                  display: 'flex', alignItems: 'center',
+                  background: '#0a0f1e', borderRadius: '14px',
+                  border: '1.5px solid #1e293b', overflow: 'hidden',
+                  transition: 'border-color 0.15s',
+                }}>
+                  <span style={{ paddingLeft: '18px', fontSize: '24px', fontWeight: '800', color: '#334155', userSelect: 'none' }}>$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={price || ''}
+                    onChange={e => handlePriceChange(e.target.value)}
+                    style={{
+                      flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                      color: '#fff', fontSize: '28px', fontWeight: '800',
+                      padding: '14px 16px', width: '100%', fontFamily: 'inherit',
+                    }}
+                    placeholder="0"
+                    onFocus={e => e.target.parentNode.style.borderColor = '#22c55e'}
+                    onBlur={e  => e.target.parentNode.style.borderColor = '#1e293b'}
+                  />
+                </div>
+              </div>
+
+              {/* Years */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                    Years invested
+                  </label>
+                  <span style={{ fontSize: '22px', fontWeight: '800', color: '#22c55e' }}>{years}<span style={{ fontSize: '14px', fontWeight: '600', color: '#4ade80', marginLeft: '3px' }}>yr{years !== 1 ? 's' : ''}</span></span>
+                </div>
+                <input
+                  type="range" min="1" max="50" value={years}
+                  onChange={e => setYears(parseInt(e.target.value))}
+                  style={{ background: sliderBackground }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontSize: '11px', color: '#334155', fontWeight: '500' }}>
+                  <span>1 yr</span><span>25 yrs</span><span>50 yrs</span>
+                </div>
+              </div>
+
+              {/* Return rate */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  Annual return
+                </label>
+                {/* Pills row */}
+                <div className="preset-row">
+                  {RETURN_OPTS.map(r => {
+                    const active = !useCustom && returnPct === r;
+                    return (
+                      <button key={r} onClick={() => handleReturnPill(r)} style={{
+                        flexShrink: 0,
+                        padding: '9px 22px', borderRadius: '10px', cursor: 'pointer',
+                        fontFamily: 'inherit', fontWeight: '700', fontSize: '14px',
+                        border: `1.5px solid ${active ? '#22c55e' : '#1e293b'}`,
+                        background: active ? '#22c55e' : '#0a0f1e',
+                        color: active ? '#0a0f1e' : '#475569',
+                        transition: 'all 0.15s', whiteSpace: 'nowrap',
+                      }}>
+                        {r}%
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Custom — always visible below */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '12px', color: '#334155', fontWeight: '500' }}>or custom:</span>
+                  <div style={{
+                    display: 'flex', alignItems: 'center',
+                    background: '#0a0f1e', borderRadius: '10px',
+                    border: `1.5px solid ${useCustom ? '#22c55e' : '#1e293b'}`,
+                    padding: '7px 14px', gap: '4px', transition: 'border-color 0.15s',
+                  }}>
+                    <input
+                      type="number" min="0" max="100" step="0.1"
+                      value={customR}
+                      onFocus={handleCustomFocus}
+                      onChange={e => handleCustomChange(e.target.value)}
+                      placeholder="—"
+                      style={{
+                        width: '44px', background: 'transparent', border: 'none', outline: 'none',
+                        color: useCustom ? '#22c55e' : '#475569',
+                        fontWeight: '700', fontSize: '15px', textAlign: 'right',
+                        fontFamily: 'inherit',
+                      }}
+                    />
+                    <span style={{ fontSize: '14px', color: useCustom ? '#22c55e' : '#334155', fontWeight: '600' }}>%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Result card ── */}
+            <div style={{
+              background: 'linear-gradient(135deg, #052e16 0%, #14532d 60%, #166534 100%)',
+              border: '1px solid rgba(34,197,94,0.3)',
+              borderRadius: '20px', padding: '28px 24px',
+            }}>
+              <p style={{ margin: '0 0 6px', fontSize: '13px', color: 'rgba(187,247,208,0.6)', fontWeight: '500' }}>
+                If you invested <span style={{ color: '#bbf7d0', fontWeight: '700' }}>{fmtFull(price)}</span> today instead…
+              </p>
+              <div style={{ fontSize: 'clamp(44px, 12vw, 64px)', fontWeight: '900', color: '#fff', lineHeight: 1, margin: '8px 0 10px', letterSpacing: '-1px' }}>
+                {fmt(futureValue)}
+              </div>
+              <p style={{ margin: '0 0 18px', fontSize: '14px', color: 'rgba(187,247,208,0.55)' }}>
+                in <strong style={{ color: '#dcfce7' }}>{years} year{years !== 1 ? 's' : ''}</strong> at <strong style={{ color: '#dcfce7' }}>{effectiveR}% annual return</strong>
+              </p>
+              <div style={{ borderTop: '1px solid rgba(34,197,94,0.2)', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'rgba(187,247,208,0.5)', marginBottom: '2px', fontWeight: '500' }}>Total gain</div>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#4ade80' }}>{fmt(gain)}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '12px', color: 'rgba(187,247,208,0.5)', marginBottom: '2px', fontWeight: '500' }}>Multiplier</div>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: '#4ade80' }}>{multiplier}×</div>
+                </div>
+              </div>
+            </div>
+
+            <p style={{ textAlign: 'center', fontSize: '11px', color: '#1e293b', margin: 0 }}>
+              Future Cost Calculator · for informational purposes only
+            </p>
+
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    {% endraw %}
+  </script>
+</body>
+</html>
